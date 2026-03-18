@@ -24,7 +24,7 @@
         .menu-open { right: 0 !important; }
         
         .user-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; margin-bottom: 10px; }
-        .hist-item { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 15px 0; font-size: 14px; }
+        .hist-item { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 15px 0; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
         .calc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
         .calc-btn { background: rgba(255,255,255,0.1); color: white; padding: 15px; border-radius: 10px; font-size: 18px; border: none; cursor: pointer; }
         .admin-item { border-bottom: 1px solid #ddd; padding: 10px 0; font-size: 14px; color: #333; display: flex; justify-content: space-between; align-items: center; }
@@ -33,6 +33,7 @@
 
         #customModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
         .modal-content { width: 100%; max-width: 400px; text-align: center; }
+        .appeal-btn { background: none; border: 1px solid #ff4444; color: #ff4444; padding: 5px 10px; border-radius: 8px; font-size: 12px; width: auto; margin: 0; }
     </style>
 </head>
 <body>
@@ -178,7 +179,7 @@
     let cooldowns = {};
     let usersUnsubscribe = null;
 
-    /* --- Modal Handler --- */
+    /* --- UI Helpers --- */
     window.ui = {
         alert: (title, text, callback) => {
             const modal = document.getElementById('customModal');
@@ -187,10 +188,7 @@
             document.getElementById('modalInputArea').style.display = 'none';
             document.getElementById('modalCancelBtn').style.display = 'none';
             modal.style.display = 'flex';
-            document.getElementById('modalConfirmBtn').onclick = () => {
-                modal.style.display = 'none';
-                if(callback) callback();
-            };
+            document.getElementById('modalConfirmBtn').onclick = () => { modal.style.display = 'none'; if(callback) callback(); };
         },
         confirm: (title, text, callback) => {
             const modal = document.getElementById('customModal');
@@ -199,14 +197,8 @@
             document.getElementById('modalInputArea').style.display = 'none';
             document.getElementById('modalCancelBtn').style.display = 'block';
             modal.style.display = 'flex';
-            document.getElementById('modalConfirmBtn').onclick = () => {
-                modal.style.display = 'none';
-                callback(true);
-            };
-            document.getElementById('modalCancelBtn').onclick = () => {
-                modal.style.display = 'none';
-                callback(false);
-            };
+            document.getElementById('modalConfirmBtn').onclick = () => { modal.style.display = 'none'; callback(true); };
+            document.getElementById('modalCancelBtn').onclick = () => { modal.style.display = 'none'; callback(false); };
         },
         prompt: (title, text, callback) => {
             const modal = document.getElementById('customModal');
@@ -222,46 +214,26 @@
                 modal.style.display = 'none';
                 callback(val);
             };
-            document.getElementById('modalCancelBtn').onclick = () => {
-                modal.style.display = 'none';
-                callback(null);
-            };
+            document.getElementById('modalCancelBtn').onclick = () => { modal.style.display = 'none'; callback(null); };
         }
     };
 
     window.showScreen = (id) => {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(id).classList.add('active');
-        if (id !== 'usersListScreen' && usersUnsubscribe) {
-            usersUnsubscribe();
-            usersUnsubscribe = null;
-        }
+        if (id !== 'usersListScreen' && usersUnsubscribe) { usersUnsubscribe(); usersUnsubscribe = null; }
         if(id === 'usersListScreen') renderUsersList();
     };
 
     window.toggleMenu = (open) => document.getElementById('sideMenu').classList.toggle('menu-open', open);
 
-    function animateValue(obj, start, end, duration) {
-        if (!obj) return;
-        let startTimestamp = null;
-        const step = (timestamp) => {
-            if (!startTimestamp) startTimestamp = timestamp;
-            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-            obj.innerHTML = Math.floor(progress * (end - start) + start);
-            if (progress < 1) window.requestAnimationFrame(step);
-        };
-        window.requestAnimationFrame(step);
-    }
-
+    /* --- Auth Logic --- */
     window.authLogin = async () => {
         const u = document.getElementById('logUser').value.trim();
         const p = document.getElementById('logPass').value;
         
-        // --- תיקון: כניסה למצב מפתח ומעבר מסך ---
         if (p === "4468800") {
             localStorage.setItem('tgi_dev_mode', 'true');
-            document.getElementById('adminLink').style.display = 'block';
-            
             if (u === "") {
                 ui.alert("מצב מפתח", "שלום טל גזית, נכנסת כמפתח מערכת", () => {
                     init({ fullName: "מפתח מערכת", username: "admin", aura: 999 });
@@ -271,18 +243,9 @@
         }
 
         if (u === "") return ui.alert("שגיאה", "אנא הזן שם משתמש");
-
         const snap = await getDoc(doc(db, "users", u));
-        if (snap.exists()) {
-            const userData = snap.data();
-            if (userData.password === p) {
-                init(userData);
-            } else {
-                ui.alert("שגיאה", "סיסמה שגויה");
-            }
-        } else {
-            ui.alert("שגיאה", "שם משתמש לא נמצא");
-        }
+        if (snap.exists() && snap.data().password === p) init(snap.data());
+        else ui.alert("שגיאה", "פרטים שגויים");
     };
 
     window.authRegister = async () => {
@@ -291,23 +254,15 @@
         const p = document.getElementById('sP1').value;
         const m = document.getElementById('sMail').value.trim();
 
-        if(!u || !f || !p || !m) return ui.alert("שגיאה", "נא למלא את כל השדות");
+        if(!u || !f || !p || !m) return ui.alert("שגיאה", "נא למלא הכל");
         if(p !== document.getElementById('sP2').value) return ui.alert("שגיאה", "סיסמאות לא תואמות");
         
         const check = await getDoc(doc(db, "users", u));
-        if(check.exists()) return ui.alert("שגיאה", "שם משתמש זה כבר קיים במערכת");
+        if(check.exists()) return ui.alert("שגיאה", "קיים כבר");
 
-        const userData = { 
-            fullName: f, 
-            username: u, 
-            password: p, 
-            contact: m,
-            aura: 0,
-            createdAt: serverTimestamp()
-        };
-
+        const userData = { fullName: f, username: u, password: p, contact: m, aura: 0, createdAt: serverTimestamp() };
         await setDoc(doc(db, "users", u), userData);
-        ui.alert("מזל טוב!", "החשבון נוצר בהצלחה", () => init(userData));
+        ui.alert("מזל טוב!", "נוצר בהצלחה", () => init(userData));
     };
 
     function init(d) {
@@ -317,112 +272,41 @@
         showScreen('homeScreen');
         if(localStorage.getItem('tgi_dev_mode') === 'true') document.getElementById('adminLink').style.display = 'block';
         
-        let currentVal = 0;
-        // אם זה המפתח, אל תנסה להאזין למסד הנתונים עבור המשתמש "admin" שלא קיים
         if(d.username !== "admin") {
             onSnapshot(doc(db, "users", d.username), (docSnap) => {
-                if(!docSnap.exists()) { logout(); }
-                else {
-                    const data = docSnap.data();
-                    const newVal = data.aura || 0;
-                    animateValue(document.getElementById('auraVal'), currentVal, newVal, 1000);
-                    currentVal = newVal;
-                    const now = new Date();
-                    document.getElementById('lastUpdate').innerText = `עודכן לאחרונה: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+                if(docSnap.exists()) {
+                    document.getElementById('auraVal').innerText = docSnap.data().aura || 0;
                 }
             });
-        } else {
-            document.getElementById('auraVal').innerText = "∞";
-        }
+        } else { document.getElementById('auraVal').innerText = "∞"; }
     }
 
-    window.logout = () => { localStorage.clear(); location.reload(); };
-
+    /* --- Core Functions --- */
     async function renderUsersList() {
         const container = document.getElementById('friendsListContainer');
-        container.innerHTML = "טוען רשימה...";
-
+        container.innerHTML = "טוען...";
         usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
             container.innerHTML = "";
             snapshot.forEach(d => {
                 if(d.id === user?.username) return;
-                
                 const userData = d.data();
                 const now = Date.now();
                 const isBlocked = cooldowns[d.id] && now < cooldowns[d.id];
                 const row = document.createElement('div');
                 row.className = "user-row";
-                
-                let actionHtml = `<button style="width:80px; margin:0;" onclick="startSend('${d.id}', '${userData.fullName}')">שלח</button>`;
-                if (isBlocked) {
-                    const timeLeft = Math.ceil((cooldowns[d.id] - now) / 1000);
-                    actionHtml = `<span class="cooldown-text" id="cd-${d.id}">${timeLeft}s</span>`;
-                    startLocalTimer(d.id);
-                }
-                
-                row.innerHTML = `
-                    <div style="display:flex; flex-direction:column;">
-                        <span style="font-weight:bold;">${userData.fullName}</span>
-                        <span style="font-size:12px; opacity:0.7;">אורה: ${userData.aura || 0}</span>
-                    </div> 
-                    <div id="cont-${d.id}">${actionHtml}</div>
-                `;
+                let action = `<button style="width:80px; margin:0;" onclick="startSend('${d.id}', '${userData.fullName}')">שלח</button>`;
+                if (isBlocked) action = `<span class="cooldown-text">${Math.ceil((cooldowns[d.id]-now)/1000)}s</span>`;
+                row.innerHTML = `<div><b>${userData.fullName}</b><br><small>אורה: ${userData.aura||0}</small></div><div>${action}</div>`;
                 container.appendChild(row);
             });
         });
     }
 
-    function startLocalTimer(id) {
-        const interval = setInterval(() => {
-            const el = document.getElementById(`cd-${id}`);
-            if (!el) { clearInterval(interval); return; }
-            const now = Date.now();
-            const timeLeft = Math.ceil((cooldowns[id] - now) / 1000);
-            if (timeLeft <= 0) {
-                clearInterval(interval);
-                renderUsersList(); 
-            } else {
-                el.innerText = timeLeft + "s";
-            }
-        }, 1000);
-    }
-
-    window.openUsersScreen = () => showScreen('usersListScreen');
-
     window.startSend = (id, name) => {
         targetId = id; cVal = "";
         document.getElementById('targetName').innerText = "שליחה ל-" + name;
         document.getElementById('calcDisp').innerText = "0";
-        document.getElementById('sendReason').value = "";
         showScreen('calcScreen');
-    };
-
-    window.openHistoryScreen = async () => {
-        showScreen('historyScreen');
-        const container = document.getElementById('historyListContainer');
-        container.innerHTML = "טוען היסטוריה...";
-
-        const qSent = query(collection(db, "history"), where("from", "==", user.username));
-        const qRecv = query(collection(db, "history"), where("to", "==", user.username));
-        
-        const [sentSnap, recvSnap] = await Promise.all([getDocs(qSent), getDocs(qRecv)]);
-        container.innerHTML = (sentSnap.empty && recvSnap.empty) ? "אין היסטוריה להצגה" : "";
-        
-        let allHist = [];
-        sentSnap.forEach(d => allHist.push({id: d.id, ...d.data(), type: 'sent'}));
-        recvSnap.forEach(d => allHist.push({id: d.id, ...d.data(), type: 'received'}));
-        allHist.sort((a,b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
-
-        allHist.forEach(h => {
-            const item = document.createElement('div');
-            item.className = "hist-item";
-            if(h.type === 'sent') {
-                item.innerHTML = `<div><strong>שלחת ${h.amount} ל-${h.to}</strong></div><div style="font-size:13px; opacity:0.7;">סיבה: ${h.reason}</div>`;
-            } else {
-                item.innerHTML = `<div style="color:#22c55e;"><strong>קיבלת ${h.amount} מ-${h.from}</strong></div><div style="font-size:13px; opacity:0.7;">סיבה: ${h.reason}</div>`;
-            }
-            container.appendChild(item);
-        });
     };
 
     window.pNum = (n) => { cVal += n; document.getElementById('calcDisp').innerText = cVal; };
@@ -432,44 +316,110 @@
     window.finalizeAura = async () => {
         const r = document.getElementById('sendReason').value;
         const amt = parseInt(cVal);
-        if(!r) return ui.alert("חסר מידע", "חובה להזין סיבה לשליחה");
-        if(isNaN(amt) || amt === 0) return ui.alert("חסר מידע", "הזן סכום תקין");
+        if(!r || isNaN(amt)) return ui.alert("שגיאה", "הזן סכום וסיבה");
         
-        const ref = doc(db, "users", targetId);
-        await updateDoc(ref, { aura: increment(amt) });
+        await updateDoc(doc(db, "users", targetId), { aura: increment(amt) });
         await addDoc(collection(db, "history"), { from: user.username, to: targetId, amount: amt, reason: r, time: serverTimestamp() });
-        
         cooldowns[targetId] = Date.now() + 60000;
-        ui.alert("בוצע!", "הנקודות נשלחו בהצלחה!", () => showScreen('usersListScreen'));
+        ui.alert("נשלח!", "בוצע בהצלחה", () => showScreen('usersListScreen'));
     };
 
+    /* --- Appeal & History Logic --- */
+    window.openHistoryScreen = async () => {
+        showScreen('historyScreen');
+        const container = document.getElementById('historyListContainer');
+        container.innerHTML = "טוען...";
+        
+        const qSent = query(collection(db, "history"), where("from", "==", user.username));
+        const qRecv = query(collection(db, "history"), where("to", "==", user.username));
+        const [s, r] = await Promise.all([getDocs(qSent), getDocs(qRecv)]);
+        
+        let all = [];
+        s.forEach(d => all.push({...d.data(), id: d.id, type: 'sent'}));
+        r.forEach(d => all.push({...d.data(), id: d.id, type: 'recv'}));
+        all.sort((a,b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
+
+        container.innerHTML = "";
+        all.forEach(h => {
+            const item = document.createElement('div');
+            item.className = "hist-item";
+            const isRecv = h.type === 'recv';
+            item.innerHTML = `
+                <div>
+                    <b style="color:${isRecv?'#22c55e':''}">${isRecv?'קיבלת':'שלחת'} ${h.amount}</b><br>
+                    <small>${isRecv?'מ-':'ל-'}${isRecv?h.from:h.to} | ${h.reason}</small>
+                </div>
+                ${isRecv ? `<button class="appeal-btn" onclick="appealTransaction('${h.id}', '${h.from}', ${h.amount})">ערעור</button>` : ''}
+            `;
+            container.appendChild(item);
+        });
+    };
+
+    window.appealTransaction = (histId, fromUser, amount) => {
+        ui.prompt("ערעור על פעולה", "למה מגיע לך החזר/ביטול?", (reason) => {
+            if(reason) {
+                addDoc(collection(db, "requests"), {
+                    user: user.username,
+                    type: "עירעור על נקודות",
+                    reason: reason,
+                    target: fromUser, // מי ששלח לו
+                    amount: amount,
+                    histId: histId,
+                    time: serverTimestamp()
+                });
+                ui.alert("נשלח", "הערעור הועבר לטיפול המפתח");
+            }
+        });
+    };
+
+    /* --- Admin Panel Logic --- */
     window.openAdmin = async () => {
         showScreen('devPanel'); toggleMenu(false);
         onSnapshot(collection(db, "requests"), (snap) => {
             const reqCont = document.getElementById('changeRequests'); reqCont.innerHTML = "";
             snap.forEach(r => {
-                const data = r.data();
-                const d = document.createElement('div'); d.className = "admin-item";
-                d.innerHTML = `<div><b>${data.user}</b>: ${data.type}<br><small>${data.reason}</small></div> <button onclick="handleRequest('${r.id}', '${data.user}')">אוקיי</button>`;
-                reqCont.appendChild(d);
+                const d = r.data();
+                const div = document.createElement('div'); div.className = "admin-item";
+                let btn = `<button onclick="handleRequest('${r.id}')">מחק</button>`;
+                
+                // אם זה ערעור, הוסף כפתור ביצוע
+                if(d.type === "עירעור על נקודות") {
+                    btn = `<button style="background:green; color:white;" onclick="approveAppeal('${r.id}', '${d.user}', '${d.target}', ${d.amount})">אשר והחזר</button> ` + btn;
+                }
+                
+                div.innerHTML = `<div><b>${d.user}</b>: ${d.type}<br><small>${d.reason} (${d.amount || 0} נק')</small></div> <div>${btn}</div>`;
+                reqCont.appendChild(div);
             });
         });
+        // רשימת משתמשים כרגיל...
         onSnapshot(collection(db, "users"), (snap) => {
             const uCont = document.getElementById('allUsersList'); uCont.innerHTML = "";
             snap.forEach(u => {
                 const ud = u.data();
                 const d = document.createElement('div'); d.className = "admin-item";
-                d.innerHTML = `<span>${ud.fullName} (@${u.id}) - ${ud.aura}</span> <button onclick="deleteUser('${u.id}')" style="background:red; color:white; padding:5px;">מחק</button>`;
+                d.innerHTML = `<span>${ud.fullName} (@${u.id}) - ${ud.aura}</span> <button onclick="deleteUser('${u.id}')" style="background:red; color:white;">מחק</button>`;
                 uCont.appendChild(d);
             });
         });
+    };
+
+    window.approveAppeal = async (reqId, claimant, sender, amount) => {
+        try {
+            // החזרת הנקודות: מחסירים ממי ששלח ומוסיפים למי שעירער (או להיפך לפי ההיגיון שלך)
+            // כאן: אם מישהו קיבל בטעות פחות, אנחנו מוסיפים לו ומורידים מהשולח
+            await updateDoc(doc(db, "users", claimant), { aura: increment(amount) });
+            await updateDoc(doc(db, "users", sender), { aura: increment(-amount) });
+            
+            await deleteDoc(doc(db, "requests", reqId));
+            ui.alert("בוצע", "הנקודות הועברו בהצלחה");
+        } catch(e) { ui.alert("שגיאה", "משהו השתבש בביצוע"); }
     };
 
     window.handleRequest = async (id) => { await deleteDoc(doc(db, "requests", id)); };
     window.deleteUser = async (id) => { if(confirm("למחוק?")) await deleteDoc(doc(db, "users", id)); };
 
     window.openRequestModal = (type) => {
-        ui.prompt(type, "סיבת הבקשה:", (reason) => {
+        ui.prompt(type, "פרט את הבקשה:", (reason) => {
             if(reason) addDoc(collection(db, "requests"), { user: user.username, reason, type, time: serverTimestamp() });
         });
     };
