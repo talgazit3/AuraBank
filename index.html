@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aura Bank | TGI Official</title>
+    <style>
+        :root { --glass: rgba(255, 255, 255, 0.12); --blur: blur(20px); }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: system-ui, -apple-system, sans-serif; background: #020617; color: white; overflow: hidden; }
+        #app { width: 100%; height: 100%; display: flex; flex-direction: column; background: linear-gradient(145deg, #0f172a, #1e1b4b); }
+        .screen { display: none; flex-direction: column; padding: 20px; height: 100%; box-sizing: border-box; overflow-y: auto; }
+        .active { display: flex; }
+        
+        #loginScreen { justify-content: center; align-items: center; }
+        .login-container { width: 100%; max-width: 350px; }
+
+        .glass-card { background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 15px; margin-bottom: 15px; }
+        input, textarea { width: 100%; padding: 15px; margin: 8px 0; border-radius: 12px; border: none; background: rgba(255,255,255,0.08); color: white; font-size: 16px; box-sizing: border-box; outline: none; }
+        button { width: 100%; padding: 16px; border-radius: 12px; border: none; background: white; color: #1e1b4b; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .aura-circle { width: 200px; height: 200px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 10px auto 30px auto; background: rgba(255,255,255,0.05); }
+        
+        #sideMenu { position: fixed; top: 0; right: -100%; width: 85%; height: 100%; background: #fff; color: #1e1b4b; z-index: 1000; transition: 0.4s; padding: 30px; box-sizing: border-box; }
+        .menu-open { right: 0 !important; }
+        
+        .user-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; margin-bottom: 10px; }
+        .hist-item { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 15px 0; font-size: 14px; }
+        .calc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .calc-btn { background: rgba(255,255,255,0.1); color: white; padding: 15px; border-radius: 10px; font-size: 18px; border: none; cursor: pointer; }
+        .admin-item { border-bottom: 1px solid #ddd; padding: 10px 0; font-size: 14px; color: #333; display: flex; justify-content: space-between; align-items: center; }
+        .cooldown-text { color: #ff4444; font-weight: bold; font-size: 14px; }
+        .update-time { text-align: center; font-size: 12px; opacity: 0.5; margin-bottom: 5px; }
+
+        /* Modal Styles */
+        #customModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
+        .modal-content { width: 100%; max-width: 400px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="customModal">
+        <div class="modal-content glass-card">
+            <h3 id="modalTitle">הודעה</h3>
+            <p id="modalText"></p>
+            <div id="modalInputArea" style="display:none;">
+                <textarea id="modalInput" placeholder="כתוב כאן..."></textarea>
+            </div>
+            <div style="display:flex; gap: 10px;">
+                <button id="modalConfirmBtn">אישור</button>
+                <button id="modalCancelBtn" style="background:none; border:1px solid white; color:white; display:none;">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loginScreen" class="screen active">
+        <div class="login-container">
+            <h1 style="text-align:center; margin-bottom: 30px;">Aura Bank</h1>
+            <div class="glass-card">
+                <input type="text" id="logUser" placeholder="שם משתמש">
+                <input type="password" id="logPass" placeholder="סיסמה">
+                <button onclick="authLogin()">כניסה</button>
+                <p style="text-align:center; margin-top:20px; font-size: 14px; cursor: pointer;" onclick="showScreen('signScreen')">אין לך חשבון? הרשמה</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="signScreen" class="screen">
+        <h2>יצירת משתמש</h2>
+        <div class="glass-card">
+            <input type="text" id="sFull" placeholder="שם מלא">
+            <input type="text" id="sUser" placeholder="שם משתמש">
+            <input type="password" id="sP1" placeholder="סיסמה">
+            <input type="password" id="sP2" placeholder="אימות סיסמה">
+            <input type="text" id="sMail" placeholder="אימייל / טלפון">
+            <button onclick="authRegister()">צור חשבון</button>
+            <p onclick="showScreen('loginScreen')" style="cursor: pointer;">חזור לכניסה</p>
+        </div>
+    </div>
+
+    <div id="homeScreen" class="screen">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+            <h3 id="helloName">שלום</h3>
+            <span style="font-size:30px; cursor: pointer;" onclick="toggleMenu(true)">☰</span>
+        </div>
+        <div class="update-time" id="lastUpdate">עודכן לאחרונה: --:--</div>
+        <div class="aura-circle">
+            <span style="opacity:0.6">יש לך:</span>
+            <h1 id="auraVal">0</h1>
+            <span style="opacity:0.6">אורה</span>
+        </div>
+        <button onclick="openUsersScreen()">שלח נקודות אורה</button>
+        <button style="background:none; border:1px solid white; color:white; margin-top:10px" onclick="openHistoryScreen()">היסטוריה ועירעורים</button>
+    </div>
+
+    <div id="usersListScreen" class="screen">
+        <div style="display:flex; align-items:center; margin-bottom: 20px;">
+            <button onclick="showScreen('homeScreen')" style="width: 60px; margin:0; margin-left:15px; padding: 5px;">חזור</button>
+            <h2 style="margin:0">בחר חבר לשליחה</h2>
+        </div>
+        <div id="friendsListContainer"></div>
+    </div>
+
+    <div id="historyScreen" class="screen">
+        <div style="display:flex; align-items:center; margin-bottom: 20px;">
+            <button onclick="showScreen('homeScreen')" style="width: 60px; margin:0; margin-left:15px; padding: 5px;">חזור</button>
+            <h2 style="margin:0">היסטוריה</h2>
+        </div>
+        <div id="historyListContainer" class="glass-card"></div>
+    </div>
+
+    <div id="calcScreen" class="screen">
+        <h3 id="targetName">שליחה ל-</h3>
+        <div class="glass-card">
+            <h1 id="calcDisp" style="text-align:center; font-size:45px">0</h1>
+            <div class="calc-grid">
+                <button class="calc-btn" onclick="pNum('1')">1</button>
+                <button class="calc-btn" onclick="pNum('2')">2</button>
+                <button class="calc-btn" onclick="pNum('3')">3</button>
+                <button class="calc-btn" onclick="pNum('4')">4</button>
+                <button class="calc-btn" onclick="pNum('5')">5</button>
+                <button class="calc-btn" onclick="pNum('6')">6</button>
+                <button class="calc-btn" onclick="pNum('7')">7</button>
+                <button class="calc-btn" onclick="pNum('8')">8</button>
+                <button class="calc-btn" onclick="pNum('9')">9</button>
+                <button class="calc-btn" style="background:#22c55e" onclick="setO('+')">+</button>
+                <button class="calc-btn" onclick="pNum('0')">0</button>
+                <button class="calc-btn" style="background:#ef4444" onclick="setO('-')">-</button>
+                <button class="calc-btn" style="grid-column: span 3; background:#475569" onclick="backspace()">⌫ מחיקה</button>
+            </div>
+            <input type="text" id="sendReason" placeholder="סיבה לשליחה (חובה)">
+            <button onclick="finalizeAura()">שלח נקודות</button>
+        </div>
+        <button onclick="showScreen('usersListScreen')" style="background:none; color:white; border:1px solid white;">ביטול</button>
+    </div>
+
+    <div id="devPanel" class="screen">
+        <button onclick="showScreen('homeScreen')">חזרה</button>
+        <h2 style="color:#dc2626">פאנל מפתח TGI - טל גזית</h2>
+        <div class="glass-card" style="background:white; color:#111">
+            <h4>בקשות ועירעורים</h4>
+            <div id="changeRequests"></div>
+        </div>
+        <div class="glass-card" style="background:white; color:#111">
+            <h4>כל המשתמשים</h4>
+            <div id="allUsersList"></div>
+        </div>
+    </div>
+
+    <div id="sideMenu">
+        <h3>הגדרות חשבון</h3>
+        <button onclick="openRequestModal('שינוי פרטים')">בקשה לשינוי פרטים</button>
+        <button onclick="openRequestModal('התנתקות')" style="color: red; border: 1px solid red; background: none;">בקשת התנתקות מהמערכת</button>
+        <div id="adminLink" style="display:none; margin-top:20px">
+            <button style="background:#1e1b4b; color:white" onclick="openAdmin()">ניהול מפתח (Admin)</button>
+        </div>
+        <button style="margin-top:30px;" onclick="toggleMenu(false)">סגור</button>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot, addDoc, serverTimestamp, query, where, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCiHk4FT5DqNrBTLSwKTIu_L7t5Zau2bK4",
+        authDomain: "aurabank-75d81.firebaseapp.com",
+        projectId: "aurabank-75d81",
+        storageBucket: "aurabank-75d81.firebasestorage.app",
+        messagingSenderId: "1007350772238",
+        appId: "1:1007350772238:web:130462b5421850bc44025f"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let user = null;
+    let targetId = null;
+    let cVal = "";
+    let cooldowns = {};
+    let usersUnsubscribe = null;
+
+    /* --- Modal Handler --- */
+    window.ui = {
+        alert: (title, text, callback) => {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalText').innerText = text;
+            document.getElementById('modalInputArea').style.display = 'none';
+            document.getElementById('modalCancelBtn').style.display = 'none';
+            modal.style.display = 'flex';
+            document.getElementById('modalConfirmBtn').onclick = () => {
+                modal.style.display = 'none';
+                if(callback) callback();
+            };
+        },
+        confirm: (title, text, callback) => {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalText').innerText = text;
+            document.getElementById('modalInputArea').style.display = 'none';
+            document.getElementById('modalCancelBtn').style.display = 'block';
+            modal.style.display = 'flex';
+            document.getElementById('modalConfirmBtn').onclick = () => {
+                modal.style.display = 'none';
+                callback(true);
+            };
+            document.getElementById('modalCancelBtn').onclick = () => {
+                modal.style.display = 'none';
+                callback(false);
+            };
+        },
+        prompt: (title, text, callback) => {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalText').innerText = text;
+            document.getElementById('modalInputArea').style.display = 'block';
+            document.getElementById('modalInput').value = "";
+            document.getElementById('modalCancelBtn').style.display = 'block';
+            modal.style.display = 'flex';
+            document.getElementById('modalConfirmBtn').onclick = () => {
+                const val = document.getElementById('modalInput').value;
+                if(!val) return;
+                modal.style.display = 'none';
+                callback(val);
+            };
+            document.getElementById('modalCancelBtn').onclick = () => {
+                modal.style.display = 'none';
+                callback(null);
+            };
+        }
+    };
+
+    window.showScreen = (id) => {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        
+        // ניקוי מאזינים קודמים אם עוזבים את רשימת המשתמשים
+        if (id !== 'usersListScreen' && usersUnsubscribe) {
+            usersUnsubscribe();
+            usersUnsubscribe = null;
+        }
+
+        if(id === 'usersListScreen') renderUsersList();
+    };
+
+    window.toggleMenu = (open) => document.getElementById('sideMenu').classList.toggle('menu-open', open);
+
+    function animateValue(obj, start, end, duration) {
+        if (!obj) return;
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            obj.innerHTML = Math.floor(progress * (end - start) + start);
+            if (progress < 1) window.requestAnimationFrame(step);
+        };
+        window.requestAnimationFrame(step);
+    }
+
+    window.authLogin = async () => {
+        const u = document.getElementById('logUser').value;
+        const p = document.getElementById('logPass').value;
+        if (p === "4468800") {
+            localStorage.setItem('tgi_dev_mode', 'true');
+            ui.alert("מצב מפתח", "שלום טל גזית, מצב מפתח פעיל");
+            document.getElementById('adminLink').style.display = 'block';
+        }
+        if (u !== "") {
+            const snap = await getDoc(doc(db, "users", u));
+            if (snap.exists() && snap.data().password === p) {
+                init(snap.data());
+            } else ui.alert("שגיאה", "טעות בשם המשתמש או בסיסמה");
+        } else if (p === "4468800") {
+            showScreen('homeScreen');
+        }
+    };
+
+    window.authRegister = async () => {
+        const u = document.getElementById('sUser').value;
+        const f = document.getElementById('sFull').value;
+        const p = document.getElementById('sP1').value;
+        if(p !== document.getElementById('sP2').value) return ui.alert("שגיאה", "סיסמאות לא תואמות");
+        const check = await getDoc(doc(db, "users", u));
+        if(check.exists()) return ui.alert("שגיאה", "שם משתמש תפוס");
+        const d = { fullName: f, username: u, password: p, aura: 0 };
+        await setDoc(doc(db, "users", u), d);
+        init(d);
+    };
+
+    function init(d) {
+        user = d;
+        localStorage.setItem('aura_uid', d.username);
+        document.getElementById('helloName').innerText = "שלום, " + d.fullName;
+        showScreen('homeScreen');
+        if(localStorage.getItem('tgi_dev_mode') === 'true') document.getElementById('adminLink').style.display = 'block';
+        let currentVal = 0;
+        onSnapshot(doc(db, "users", d.username), (docSnap) => {
+            if(!docSnap.exists()) { logout(); }
+            else {
+                const newVal = docSnap.data().aura;
+                animateValue(document.getElementById('auraVal'), currentVal, newVal, 1000);
+                currentVal = newVal;
+                const now = new Date();
+                document.getElementById('lastUpdate').innerText = `עודכן לאחרונה: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            }
+        });
+    }
+
+    window.logout = () => { localStorage.clear(); location.reload(); };
+
+    async function renderUsersList() {
+        const container = document.getElementById('friendsListContainer');
+        container.innerHTML = "טוען רשימה...";
+
+        // האזנה חיה לכל המשתמשים לסנכרון נקודות אוטומטי
+        usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+            container.innerHTML = "";
+            snapshot.forEach(d => {
+                if(d.id === user?.username) return;
+                
+                const userData = d.data();
+                const now = Date.now();
+                const isBlocked = cooldowns[d.id] && now < cooldowns[d.id];
+                
+                const row = document.createElement('div');
+                row.className = "user-row";
+                
+                let actionHtml = `<button style="width:80px; margin:0;" onclick="startSend('${d.id}', '${userData.fullName}')">שלח</button>`;
+                
+                if (isBlocked) {
+                    const timeLeft = Math.ceil((cooldowns[d.id] - now) / 1000);
+                    actionHtml = `<span class="cooldown-text" id="cd-${d.id}">${timeLeft}s</span>`;
+                    startLocalTimer(d.id);
+                }
+                
+                row.innerHTML = `
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-weight:bold;">${userData.fullName}</span>
+                        <span style="font-size:12px; opacity:0.7;">אורה: ${userData.aura || 0}</span>
+                    </div> 
+                    <div id="cont-${d.id}">${actionHtml}</div>
+                `;
+                container.appendChild(row);
+            });
+        });
+    }
+
+    function startLocalTimer(id) {
+        const interval = setInterval(() => {
+            const el = document.getElementById(`cd-${id}`);
+            if (!el) { clearInterval(interval); return; }
+            const now = Date.now();
+            const timeLeft = Math.ceil((cooldowns[id] - now) / 1000);
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                // רנדור מחדש יקרה אוטומטית בגלל ה-onSnapshot אם יהיה שינוי, 
+                // אבל כאן אנחנו רק רוצים להחזיר את הכפתור
+                const cont = document.getElementById(`cont-${id}`);
+                if(cont) renderUsersList(); 
+            } else {
+                el.innerText = timeLeft + "s";
+            }
+        }, 1000);
+    }
+
+    window.openUsersScreen = () => showScreen('usersListScreen');
+
+    window.startSend = (id, name) => {
+        targetId = id; cVal = "";
+        document.getElementById('targetName').innerText = "שליחה ל-" + name;
+        document.getElementById('calcDisp').innerText = "0";
+        document.getElementById('sendReason').value = "";
+        showScreen('calcScreen');
+    };
+
+    window.openHistoryScreen = async () => {
+        showScreen('historyScreen');
+        const container = document.getElementById('historyListContainer');
+        container.innerHTML = "טוען היסטוריה...";
+
+        const qSent = query(collection(db, "history"), where("from", "==", user.username));
+        const qRecv = query(collection(db, "history"), where("to", "==", user.username));
+        
+        const [sentSnap, recvSnap] = await Promise.all([getDocs(qSent), getDocs(qRecv)]);
+        
+        container.innerHTML = (sentSnap.empty && recvSnap.empty) ? "אין היסטוריה להצגה" : "";
+        
+        let allHist = [];
+        sentSnap.forEach(d => allHist.push({id: d.id, ...d.data(), type: 'sent'}));
+        recvSnap.forEach(d => allHist.push({id: d.id, ...d.data(), type: 'received'}));
+        
+        allHist.sort((a,b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
+
+        allHist.forEach(h => {
+            const item = document.createElement('div');
+            item.className = "hist-item";
+            
+            if(h.type === 'sent') {
+                item.innerHTML = `
+                    <div style="margin-bottom:5px;"><strong>שלחת ${h.amount} ל-${h.to}</strong></div>
+                    <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; font-size:13px; color:#cbd5e1;">
+                        סיבה: ${h.reason || "לא צוינה סיבה"}
+                    </div>
+                `;
+            } else {
+                item.innerHTML = `
+                    <div style="margin-bottom:5px; color:#22c55e;"><strong>קיבלת ${h.amount} מ-${h.from}</strong></div>
+                    <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; font-size:13px; color:#cbd5e1;">
+                        סיבה: ${h.reason || "לא צוינה סיבה"}
+                    </div>
+                    <button style="padding:5px 12px; width:auto; font-size:12px; margin-top:8px; background:rgba(255,255,255,0.1); color:white; border:1px solid rgba(255,255,255,0.2);" onclick="sendAppeal('${h.id}', '${h.from}', ${h.amount}, '${h.reason}')">שלח עירעור</button>
+                `;
+            }
+            container.appendChild(item);
+        });
+    };
+
+    window.sendAppeal = async (histId, from, amt, originalReason) => {
+        await addDoc(collection(db, "requests"), { 
+            user: user.username, 
+            type: "עירעור נקודות", 
+            histId, 
+            sender: from, 
+            amount: amt, 
+            reason: originalReason, 
+            time: serverTimestamp() 
+        });
+        ui.alert("העירעור נשלח", "העירעור נשלח למנהל המערכת.");
+    };
+
+    window.pNum = (n) => { cVal += n; document.getElementById('calcDisp').innerText = cVal; };
+    window.setO = (o) => { if(!cVal.includes('+') && !cVal.includes('-')) cVal = o + cVal; document.getElementById('calcDisp').innerText = cVal; };
+    window.backspace = () => { cVal = cVal.slice(0, -1); document.getElementById('calcDisp').innerText = cVal || "0"; };
+
+    window.finalizeAura = async () => {
+        const r = document.getElementById('sendReason').value;
+        const amt = parseInt(cVal);
+        if(!r) return ui.alert("חסר מידע", "חובה להזין סיבה לשליחה");
+        if(isNaN(amt) || amt === 0) return ui.alert("חסר מידע", "הזן סכום תקין");
+        
+        const ref = doc(db, "users", targetId);
+        const s = await getDoc(ref);
+        
+        await updateDoc(ref, { aura: (s.data().aura || 0) + amt });
+        
+        await addDoc(collection(db, "history"), { 
+            from: user.username, 
+            to: targetId, 
+            amount: amt, 
+            reason: r, 
+            time: serverTimestamp() 
+        });
+        
+        cooldowns[targetId] = Date.now() + 60000;
+        ui.alert("בוצע!", "הנקודות נשלחו בהצלחה!", () => {
+            showScreen('usersListScreen');
+        });
+    };
+
+    window.openAdmin = async () => {
+        showScreen('devPanel'); toggleMenu(false);
+        onSnapshot(collection(db, "requests"), (snap) => {
+            const reqCont = document.getElementById('changeRequests'); reqCont.innerHTML = "";
+            snap.forEach(r => {
+                const data = r.data();
+                const d = document.createElement('div'); d.className = "admin-item";
+                d.innerHTML = `<div><b>${data.user}</b>: ${data.type}<br><small>${data.reason}</small></div> <button onclick="handleRequest('${r.id}', '${data.user}')">אוקיי</button>`;
+                reqCont.appendChild(d);
+            });
+        });
+        onSnapshot(collection(db, "users"), (snap) => {
+            const uCont = document.getElementById('allUsersList'); uCont.innerHTML = "";
+            snap.forEach(u => {
+                const ud = u.data();
+                const d = document.createElement('div'); d.className = "admin-item";
+                d.innerHTML = `<span>${ud.fullName} (@${u.id}) - ${ud.aura}</span> <button onclick="deleteUser('${u.id}')" style="background:red; color:white; padding:5px;">מחק</button>`;
+                uCont.appendChild(d);
+            });
+        });
+    };
+
+    window.handleRequest = async (reqId, requestUser) => {
+        const reqRef = doc(db, "requests", reqId);
+        const reqSnap = await getDoc(reqRef);
+        
+        if (reqSnap.exists()) {
+            const data = reqSnap.data();
+            
+            if (data.type === "התנתקות") {
+                ui.alert("מנהל", `בקשת התנתקות של ${requestUser} טופלה.`);
+            }
+            
+            if (data.type === "עירעור נקודות") {
+                const amount = data.amount;
+                const receiver = data.user; 
+
+                try {
+                    const receiverRef = doc(db, "users", receiver);
+                    await updateDoc(receiverRef, { aura: increment(-amount) });
+                    if(data.histId) await deleteDoc(doc(db, "history", data.histId));
+                    ui.alert("מנהל", `העירעור אושר: ${amount} נקודות נלקחו מחשבונו של ${receiver}.`);
+                } catch (e) {
+                    console.error("Error reversing aura:", e);
+                }
+            }
+        }
+        await deleteDoc(reqRef);
+    };
+
+    window.deleteUser = async (id) => { 
+        ui.confirm("מחיקת משתמש", "האם אתה בטוח שברצונך למחוק את המשתמש?", async (confirmed) => {
+            if(confirmed) await deleteDoc(doc(db, "users", id)); 
+        });
+    };
+
+    window.openRequestModal = (type) => {
+        ui.prompt(type, "נא ציין את סיבת הבקשה עבור טל גזית (TGI):", (reason) => {
+            if(reason) {
+                addDoc(collection(db, "requests"), { user: user.username, reason, type, time: serverTimestamp() });
+                ui.alert("בקשה נשלחה", "הבקשה הועברה לטיפול המנהל.");
+            }
+        });
+    };
+
+    const saved = localStorage.getItem('aura_uid');
+    if(saved) getDoc(doc(db, "users", saved)).then(d => { if(d.exists()) init(d.data()); });
+</script>
+</body>
+</html>
