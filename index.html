@@ -257,12 +257,17 @@
         const u = document.getElementById('logUser').value.trim();
         const p = document.getElementById('logPass').value;
         
-        // --- שינוי כאן: כניסה למצב מפתח ---
+        // --- תיקון: כניסה למצב מפתח ומעבר מסך ---
         if (p === "4468800") {
             localStorage.setItem('tgi_dev_mode', 'true');
-            ui.alert("מצב מפתח", "שלום טל גזית, מצב מפתח פעיל");
             document.getElementById('adminLink').style.display = 'block';
-            if (u === "") return; // עוצר כאן אם לא הוזן שם משתמש
+            
+            if (u === "") {
+                ui.alert("מצב מפתח", "שלום טל גזית, נכנסת כמפתח מערכת", () => {
+                    init({ fullName: "מפתח מערכת", username: "admin", aura: 999 });
+                });
+                return;
+            }
         }
 
         if (u === "") return ui.alert("שגיאה", "אנא הזן שם משתמש");
@@ -313,17 +318,22 @@
         if(localStorage.getItem('tgi_dev_mode') === 'true') document.getElementById('adminLink').style.display = 'block';
         
         let currentVal = 0;
-        onSnapshot(doc(db, "users", d.username), (docSnap) => {
-            if(!docSnap.exists()) { logout(); }
-            else {
-                const data = docSnap.data();
-                const newVal = data.aura || 0;
-                animateValue(document.getElementById('auraVal'), currentVal, newVal, 1000);
-                currentVal = newVal;
-                const now = new Date();
-                document.getElementById('lastUpdate').innerText = `עודכן לאחרונה: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-            }
-        });
+        // אם זה המפתח, אל תנסה להאזין למסד הנתונים עבור המשתמש "admin" שלא קיים
+        if(d.username !== "admin") {
+            onSnapshot(doc(db, "users", d.username), (docSnap) => {
+                if(!docSnap.exists()) { logout(); }
+                else {
+                    const data = docSnap.data();
+                    const newVal = data.aura || 0;
+                    animateValue(document.getElementById('auraVal'), currentVal, newVal, 1000);
+                    currentVal = newVal;
+                    const now = new Date();
+                    document.getElementById('lastUpdate').innerText = `עודכן לאחרונה: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+                }
+            });
+        } else {
+            document.getElementById('auraVal').innerText = "∞";
+        }
     }
 
     window.logout = () => { localStorage.clear(); location.reload(); };
@@ -465,7 +475,10 @@
     };
 
     const saved = localStorage.getItem('aura_uid');
-    if(saved) getDoc(doc(db, "users", saved)).then(d => { if(d.exists()) init(d.data()); });
+    if(saved) {
+        if(saved === "admin") init({ fullName: "מפתח מערכת", username: "admin", aura: 999 });
+        else getDoc(doc(db, "users", saved)).then(d => { if(d.exists()) init(d.data()); });
+    }
 </script>
 </body>
 </html>
