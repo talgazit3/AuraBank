@@ -31,7 +31,6 @@
         .cooldown-text { color: #ff4444; font-weight: bold; font-size: 14px; }
         .update-time { text-align: center; font-size: 12px; opacity: 0.5; margin-bottom: 5px; }
 
-        /* Modal Styles */
         #customModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
         .modal-content { width: 100%; max-width: 400px; text-align: center; }
     </style>
@@ -233,13 +232,10 @@
     window.showScreen = (id) => {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(id).classList.add('active');
-        
-        // ניקוי מאזינים קודמים אם עוזבים את רשימת המשתמשים
         if (id !== 'usersListScreen' && usersUnsubscribe) {
             usersUnsubscribe();
             usersUnsubscribe = null;
         }
-
         if(id === 'usersListScreen') renderUsersList();
     };
 
@@ -258,33 +254,53 @@
     }
 
     window.authLogin = async () => {
-        const u = document.getElementById('logUser').value;
+        const u = document.getElementById('logUser').value.trim();
         const p = document.getElementById('logPass').value;
+        
         if (p === "4468800") {
             localStorage.setItem('tgi_dev_mode', 'true');
             ui.alert("מצב מפתח", "שלום טל גזית, מצב מפתח פעיל");
             document.getElementById('adminLink').style.display = 'block';
         }
-        if (u !== "") {
-            const snap = await getDoc(doc(db, "users", u));
-            if (snap.exists() && snap.data().password === p) {
-                init(snap.data());
-            } else ui.alert("שגיאה", "טעות בשם המשתמש או בסיסמה");
-        } else if (p === "4468800") {
-            showScreen('homeScreen');
+
+        if (u === "") return ui.alert("שגיאה", "אנא הזן שם משתמש");
+
+        const snap = await getDoc(doc(db, "users", u));
+        if (snap.exists()) {
+            const userData = snap.data();
+            if (userData.password === p) {
+                init(userData);
+            } else {
+                ui.alert("שגיאה", "סיסמה שגויה");
+            }
+        } else {
+            ui.alert("שגיאה", "שם משתמש לא נמצא");
         }
     };
 
     window.authRegister = async () => {
-        const u = document.getElementById('sUser').value;
-        const f = document.getElementById('sFull').value;
+        const u = document.getElementById('sUser').value.trim();
+        const f = document.getElementById('sFull').value.trim();
         const p = document.getElementById('sP1').value;
+        const m = document.getElementById('sMail').value.trim();
+
+        if(!u || !f || !p || !m) return ui.alert("שגיאה", "נא למלא את כל השדות");
         if(p !== document.getElementById('sP2').value) return ui.alert("שגיאה", "סיסמאות לא תואמות");
+        
         const check = await getDoc(doc(db, "users", u));
-        if(check.exists()) return ui.alert("שגיאה", "שם משתמש תפוס");
-        const d = { fullName: f, username: u, password: p, aura: 0 };
-        await setDoc(doc(db, "users", u), d);
-        init(d);
+        if(check.exists()) return ui.alert("שגיאה", "שם משתמש זה כבר קיים במערכת");
+
+        const userData = { 
+            fullName: f, 
+            username: u, 
+            password: p, 
+            contact: m,
+            aura: 0,
+            createdAt: serverTimestamp()
+        };
+
+        await setDoc(doc(db, "users", u), userData);
+        ui.alert("מזל טוב!", "החשבון נוצר בהצלחה", () => init(userData));
     };
 
     function init(d) {
@@ -293,11 +309,13 @@
         document.getElementById('helloName').innerText = "שלום, " + d.fullName;
         showScreen('homeScreen');
         if(localStorage.getItem('tgi_dev_mode') === 'true') document.getElementById('adminLink').style.display = 'block';
+        
         let currentVal = 0;
         onSnapshot(doc(db, "users", d.username), (docSnap) => {
             if(!docSnap.exists()) { logout(); }
             else {
-                const newVal = docSnap.data().aura;
+                const data = docSnap.data();
+                const newVal = data.aura || 0;
                 animateValue(document.getElementById('auraVal'), currentVal, newVal, 1000);
                 currentVal = newVal;
                 const now = new Date();
@@ -312,7 +330,6 @@
         const container = document.getElementById('friendsListContainer');
         container.innerHTML = "טוען רשימה...";
 
-        // האזנה חיה לכל המשתמשים לסנכרון נקודות אוטומטי
         usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
             container.innerHTML = "";
             snapshot.forEach(d => {
@@ -321,12 +338,10 @@
                 const userData = d.data();
                 const now = Date.now();
                 const isBlocked = cooldowns[d.id] && now < cooldowns[d.id];
-                
                 const row = document.createElement('div');
                 row.className = "user-row";
                 
                 let actionHtml = `<button style="width:80px; margin:0;" onclick="startSend('${d.id}', '${userData.fullName}')">שלח</button>`;
-                
                 if (isBlocked) {
                     const timeLeft = Math.ceil((cooldowns[d.id] - now) / 1000);
                     actionHtml = `<span class="cooldown-text" id="cd-${d.id}">${timeLeft}s</span>`;
@@ -353,10 +368,7 @@
             const timeLeft = Math.ceil((cooldowns[id] - now) / 1000);
             if (timeLeft <= 0) {
                 clearInterval(interval);
-                // רנדור מחדש יקרה אוטומטית בגלל ה-onSnapshot אם יהיה שינוי, 
-                // אבל כאן אנחנו רק רוצים להחזיר את הכפתור
-                const cont = document.getElementById(`cont-${id}`);
-                if(cont) renderUsersList(); 
+                renderUsersList(); 
             } else {
                 el.innerText = timeLeft + "s";
             }
@@ -382,50 +394,23 @@
         const qRecv = query(collection(db, "history"), where("to", "==", user.username));
         
         const [sentSnap, recvSnap] = await Promise.all([getDocs(qSent), getDocs(qRecv)]);
-        
         container.innerHTML = (sentSnap.empty && recvSnap.empty) ? "אין היסטוריה להצגה" : "";
         
         let allHist = [];
         sentSnap.forEach(d => allHist.push({id: d.id, ...d.data(), type: 'sent'}));
         recvSnap.forEach(d => allHist.push({id: d.id, ...d.data(), type: 'received'}));
-        
         allHist.sort((a,b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
 
         allHist.forEach(h => {
             const item = document.createElement('div');
             item.className = "hist-item";
-            
             if(h.type === 'sent') {
-                item.innerHTML = `
-                    <div style="margin-bottom:5px;"><strong>שלחת ${h.amount} ל-${h.to}</strong></div>
-                    <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; font-size:13px; color:#cbd5e1;">
-                        סיבה: ${h.reason || "לא צוינה סיבה"}
-                    </div>
-                `;
+                item.innerHTML = `<div><strong>שלחת ${h.amount} ל-${h.to}</strong></div><div style="font-size:13px; opacity:0.7;">סיבה: ${h.reason}</div>`;
             } else {
-                item.innerHTML = `
-                    <div style="margin-bottom:5px; color:#22c55e;"><strong>קיבלת ${h.amount} מ-${h.from}</strong></div>
-                    <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; font-size:13px; color:#cbd5e1;">
-                        סיבה: ${h.reason || "לא צוינה סיבה"}
-                    </div>
-                    <button style="padding:5px 12px; width:auto; font-size:12px; margin-top:8px; background:rgba(255,255,255,0.1); color:white; border:1px solid rgba(255,255,255,0.2);" onclick="sendAppeal('${h.id}', '${h.from}', ${h.amount}, '${h.reason}')">שלח עירעור</button>
-                `;
+                item.innerHTML = `<div style="color:#22c55e;"><strong>קיבלת ${h.amount} מ-${h.from}</strong></div><div style="font-size:13px; opacity:0.7;">סיבה: ${h.reason}</div>`;
             }
             container.appendChild(item);
         });
-    };
-
-    window.sendAppeal = async (histId, from, amt, originalReason) => {
-        await addDoc(collection(db, "requests"), { 
-            user: user.username, 
-            type: "עירעור נקודות", 
-            histId, 
-            sender: from, 
-            amount: amt, 
-            reason: originalReason, 
-            time: serverTimestamp() 
-        });
-        ui.alert("העירעור נשלח", "העירעור נשלח למנהל המערכת.");
     };
 
     window.pNum = (n) => { cVal += n; document.getElementById('calcDisp').innerText = cVal; };
@@ -439,22 +424,11 @@
         if(isNaN(amt) || amt === 0) return ui.alert("חסר מידע", "הזן סכום תקין");
         
         const ref = doc(db, "users", targetId);
-        const s = await getDoc(ref);
-        
-        await updateDoc(ref, { aura: (s.data().aura || 0) + amt });
-        
-        await addDoc(collection(db, "history"), { 
-            from: user.username, 
-            to: targetId, 
-            amount: amt, 
-            reason: r, 
-            time: serverTimestamp() 
-        });
+        await updateDoc(ref, { aura: increment(amt) });
+        await addDoc(collection(db, "history"), { from: user.username, to: targetId, amount: amt, reason: r, time: serverTimestamp() });
         
         cooldowns[targetId] = Date.now() + 60000;
-        ui.alert("בוצע!", "הנקודות נשלחו בהצלחה!", () => {
-            showScreen('usersListScreen');
-        });
+        ui.alert("בוצע!", "הנקודות נשלחו בהצלחה!", () => showScreen('usersListScreen'));
     };
 
     window.openAdmin = async () => {
@@ -479,46 +453,12 @@
         });
     };
 
-    window.handleRequest = async (reqId, requestUser) => {
-        const reqRef = doc(db, "requests", reqId);
-        const reqSnap = await getDoc(reqRef);
-        
-        if (reqSnap.exists()) {
-            const data = reqSnap.data();
-            
-            if (data.type === "התנתקות") {
-                ui.alert("מנהל", `בקשת התנתקות של ${requestUser} טופלה.`);
-            }
-            
-            if (data.type === "עירעור נקודות") {
-                const amount = data.amount;
-                const receiver = data.user; 
-
-                try {
-                    const receiverRef = doc(db, "users", receiver);
-                    await updateDoc(receiverRef, { aura: increment(-amount) });
-                    if(data.histId) await deleteDoc(doc(db, "history", data.histId));
-                    ui.alert("מנהל", `העירעור אושר: ${amount} נקודות נלקחו מחשבונו של ${receiver}.`);
-                } catch (e) {
-                    console.error("Error reversing aura:", e);
-                }
-            }
-        }
-        await deleteDoc(reqRef);
-    };
-
-    window.deleteUser = async (id) => { 
-        ui.confirm("מחיקת משתמש", "האם אתה בטוח שברצונך למחוק את המשתמש?", async (confirmed) => {
-            if(confirmed) await deleteDoc(doc(db, "users", id)); 
-        });
-    };
+    window.handleRequest = async (id) => { await deleteDoc(doc(db, "requests", id)); };
+    window.deleteUser = async (id) => { if(confirm("למחוק?")) await deleteDoc(doc(db, "users", id)); };
 
     window.openRequestModal = (type) => {
-        ui.prompt(type, "נא ציין את סיבת הבקשה עבור טל גזית (TGI):", (reason) => {
-            if(reason) {
-                addDoc(collection(db, "requests"), { user: user.username, reason, type, time: serverTimestamp() });
-                ui.alert("בקשה נשלחה", "הבקשה הועברה לטיפול המנהל.");
-            }
+        ui.prompt(type, "סיבת הבקשה:", (reason) => {
+            if(reason) addDoc(collection(db, "requests"), { user: user.username, reason, type, time: serverTimestamp() });
         });
     };
 
