@@ -257,10 +257,12 @@
         const u = document.getElementById('logUser').value.trim();
         const p = document.getElementById('logPass').value;
         
+        // --- שינוי כאן: כניסה למצב מפתח ---
         if (p === "4468800") {
             localStorage.setItem('tgi_dev_mode', 'true');
             ui.alert("מצב מפתח", "שלום טל גזית, מצב מפתח פעיל");
             document.getElementById('adminLink').style.display = 'block';
+            if (u === "") return; // עוצר כאן אם לא הוזן שם משתמש
         }
 
         if (u === "") return ui.alert("שגיאה", "אנא הזן שם משתמש");
